@@ -9,7 +9,7 @@ class Food(object):
     
     def regen(self):
         if self.value <1:
-            self.value += 0.001 * random.randint(0,7)
+            self.value += 0.001 * random.randint(0,10)
 
     def eat(self):
         if self.value >= 1:
