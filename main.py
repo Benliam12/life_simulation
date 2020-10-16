@@ -42,16 +42,18 @@ class Arena:
         
         n_minions_list = sorted(self.minions, key=lambda x: (-x.age,x.char, x.baby_count))
         
-        #Printing shits
+        #Printing arena data
         output.append("Simulation AGE : " + "{0:.2f}".format(round(self.age * 100)/100) + "\n")
         output.append("Amount: " + str(len(self.minions)) +  "\n")
         output.append("\n")
 
-
+        #Printing info from top minions
         for index, i in enumerate(n_minions_list):
+            
+            #Number to display
             if(index == 6):
                 break
-            #pass
+            
             sub_list = []
             sub_list.append(i.char + " has moved to (" + "{:02d}".format(i.x) + "," +"{:02d}".format(i.y)+")")
             sub_list.append("(" + "{:3d}".format(int(i.energy)) + "/{:3d}".format(int(i.max_energy)) +" Energy left)")
@@ -79,12 +81,18 @@ class Arena:
         return output
 
     def _generate_terrain(self):
+        """
+        Filling the grid with food for minion to eat
+        """
         for i in range(self.dimension):
             for j in range(self.dimension):
                 grass = Food(j,i)
                 self.grass_grid[j][i] = grass
 
     def generate_minions(self, amount=1):
+        """
+        Spawining random minion with a char starting from the letter A (upper case)
+        """
         chars = list(string.ascii_uppercase)
         for i in range(amount):
             good = True
@@ -101,15 +109,16 @@ class Arena:
                     self.minions.append(a)
                     good = False
 
-    def _spawn(self, amount=1):
-        pass
-
     def spawn_baby(self, baby):
         self.minions.append(baby)
         self.positions[baby.x][baby.y] = baby
 
 
     def swap_position(self, pos1, pos2):
+        """
+        Used to make the minion move by swaping him (his cell) with the Value None, the default value of all other cells
+        in the arena
+        """
         tmp = self.positions[pos1[0]][pos1[1]]
         self.positions[pos1[0]][pos1[1]] = self.positions[pos2[0]][pos2[1]]
         if isinstance(tmp, Minion):
@@ -117,6 +126,9 @@ class Arena:
         self.positions[pos2[0]][pos2[1]] = tmp
     
     def destroy_minion(self, minion1, minion2=None):
+        """
+        Kills a minion
+        """
         if minion2 == None:
             self.positions[minion1.x][minion1.y] = None
             for index, minion in enumerate(self.minions):
@@ -130,6 +142,9 @@ class Arena:
         return value >= 0 and value < self.dimension
     
     def clear_weird_minion(self):
+        """
+        Weird fixing bug method. Clear up dead bodies if they remain in the arena
+        """
         for index_x, i in enumerate(self.positions):
             for index_y, cell in enumerate(i):
                 if isinstance(cell, Minion):
@@ -150,8 +165,10 @@ class Arena:
 
             for minion in self.minions:
                 minion.play()
+
             self.display(True)
 
+            #If the simulation has killed ALL minion, restart it with 2 new minions
             if len(self.minions) == 0:
                 self.generate_minions(2)
                 self.age = 0 
@@ -163,20 +180,28 @@ class Arena:
 
 class Minion(object):    
     def __init__(self, arena, x = 0, y = 0, char="1", energy=2.0, energy_gain=2, max_energy = 300.0, vision=3, baby_cost = 80, generation = 0, mutation_impact = 1/100):
+        #Maximum values of minion caracteritics can reach
         self.max_vision = 15
         self.max_energy_storing = 1000
         self.max_energy_gain = 4
 
+        #Position of minion
         self.x = x
         self.y = y
+
+        #Basics information of minion
+        self.age = 0
+        self.generation = generation
+        self.baby_count = 0
 
         self.energy = energy
         self.energy_gain = energy_gain
         self.max_energy = max_energy
         self.char = char
 
-        self._nextMove = [0,0]
+        #Arena instance of where the minion is located
         self.arena = arena
+
         self.vision = vision
 
         self.next_food_offset = []
@@ -190,9 +215,7 @@ class Minion(object):
 
         self.ways = [[0,1],[1,0],[0,-1],[-1,0]]
 
-        self.age = 0
-        self.generation = generation
-        self.baby_count = 0
+      
 
     def eat(self, eat):
         if eat:
@@ -205,7 +228,9 @@ class Minion(object):
                 self.make_baby()
     
     def mutate(self):
-
+        """
+        Mutation function will be applied when spawning a new baby into the arena
+        """
         up = [-1, 1]
         self.baby_cost += random.randint(1,5) * up[random.randint(0,1)] if random.random() < self.mutation_chance else 0
         self.vision += 1 * up[random.randint(0,1)] if random.random() < self.mutation_chance else 0
@@ -225,9 +250,13 @@ class Minion(object):
             self.baby_cost = math.floor(self.max_energy/2)
         
     def make_baby(self):
+        #Updating parent for more accurate informations
         self.energy -= self.baby_cost
         self.baby_count += 1
+
+        #Creating the baby
         baby = Minion(self.arena, char=self.char, max_energy=self.max_energy, energy_gain=self.energy_gain, generation = self.generation + 1, vision = self.vision, baby_cost=self.baby_cost)
+        
         x, y = self.find_valid_direction()
         baby.x = x
         baby.y = y
@@ -236,9 +265,14 @@ class Minion(object):
         baby.mutate()
         self.arena.spawn_baby(baby)
 
-        pass
-
     def find_food(self):
+        """
+        Will return a direction (x, y) of where to go in order to find the closest
+        food based on current position
+
+        Minion will be looking around him at distance 1 to his max vision range in 
+        each direction
+        """
         ways = [[0,1],[1,0],[0,-1],[-1,0]]
         random.shuffle(ways)
         for j in range(1,self.vision+1):
@@ -251,6 +285,13 @@ class Minion(object):
         return ways[random.randint(0,3)]
     
     def find_valid_direction(self, next_offset=None, can_beat_up = False):
+        """
+        Returns a valid direction of where the minion can go and where it is legal to do 
+        so.
+
+        can_beat_up is wheater you can go onto case with a Minion already standing on. If the minion is younger than
+        the current minion, it will eat it (and delete it)
+        """
         ways = [[0,1],[1,0],[0,-1],[-1,0]]
         if next_offset == None:
             next_offset = ways[random.randint(0,3)]
@@ -267,6 +308,8 @@ class Minion(object):
                     else:
                         if can_beat_up:
                             minion = self.arena.positions[new_x][new_y]
+
+                            #Eating condition
                             if minion.age < self.age:
                                 self.arena.destroy_minion(minion)
                                 minion.char = "0"
@@ -276,14 +319,19 @@ class Minion(object):
 
             imdumb -= 1 
 
+            #If im dumb get to 0, it means the minion is stuck and cannot move.
+            #TODO : Baby might spawn onto their parent if the parent is stuck while giving birth
             if not imdumb:
                 return self.x, self.y
         
         return new_x, new_y
 
     def move(self, direction=None):
-        if self.energy < 0:
-            self.arena.destroy_minion(self)
+        """
+        Move method is used every ticks of the program to make the minion do something
+        """
+
+
         next_offset = self.find_food()
         new_x, new_y = self.find_valid_direction(next_offset, True)
 
@@ -295,10 +343,15 @@ class Minion(object):
         self.energy -= 1
         self.age += 0.01
 
+        #Kills the minion if his energy dropped to 0 during this tick
+        if self.energy < 0:
+            self.arena.destroy_minion(self)
+
     def play(self):
         self.move()
     
     def color(self):
+        #TODO: Display a custom color per minion
         pass
 arena = Arena(dimension = 40, ticks=20)
 arena.generate_minions(10)
