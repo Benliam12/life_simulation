@@ -24,6 +24,7 @@ class Arena:
         self.grass_grid = [[None] * self.dimension for x in range(self.dimension)]
 
         self.baby_list = []
+        self.amount = 0
 
         #Init methods
         self._generate_terrain()
@@ -48,7 +49,7 @@ class Arena:
         
         #Printing arena data
         output.append("Simulation AGE : " + "{0:.2f}".format(round(self.age * 100)/100) + "\n")
-        output.append("Amount: " + str(len(self.minions)) +  "\n")
+        output.append("Amount: " + str(len(self.minions)) + " - " + str(self.amount) + "\n")
         output.append("\n")
 
         #Printing info from top minions
@@ -117,8 +118,6 @@ class Arena:
         self.baby_list.append(baby)
         self.positions[baby.x][baby.y] = baby
 
-
-
     def swap_position(self, pos1, pos2):
         """
         Used to make the minion move by swaping him (his cell) with the Value None, the default value of all other cells
@@ -130,20 +129,36 @@ class Arena:
             tmp.eat(self.grass_grid[pos2[0]][pos2[1]].eat())
         self.positions[pos2[0]][pos2[1]] = tmp
     
-    def destroy_minion(self, minion1, minion2=None):
+    def destroy_minion(self, minion1, minion2=None, datas=log_datas):
         """
         Kills a minion
         """
-        print(minion1.char, minion1.energy)
-        time.sleep(5)
         if minion2 == None:
-            self.positions[minion1.x][minion1.y] = None
+            target = self.positions[minion1.x][minion1.y]
+            if target == None:
+                print("MISSING TARGET", minion1.x, minion1.y)
+                print("RECEIVED", datas["x"], datas["y"], "Energy:", datas["char"])
+                time.sleep(20)
+                return
+
             for index, minion in enumerate(self.minions):
                 if minion is minion1:
+                    print("DELETING",minion.char, minion1.x, minion1.y)
+                    print("RECEIVED",datas["char"], datas["x"], datas["y"])
+                    print("index:", index)
+                    time.sleep(20)
+                    
+                    self.positions[minion1.x][minion1.y] = None
                     self.minions.pop(index)
+                    
                     print(minion1.x, minion1.y)
                     return
-            print("NO minion found!")
+            
+            print("COULDNT DELETE MINION! TARGET:", datas["target_x"], datas["target_y"])
+            print("RECEIVED", datas["x"], datas["y"])
+            time.sleep(20)
+
+
 
     def in_arena(self, value):
         return value >= 0 and value < self.dimension
@@ -152,16 +167,20 @@ class Arena:
         """
         Weird fixing bug method. Clear up dead bodies if they remain in the arena
         """
-        amount = 0
+        self.amount = 0
         for index_x, i in enumerate(self.positions):
             for index_y, cell in enumerate(i):
                 if isinstance(cell, Minion):
-                    amount+=1
-                    if cell.char == "0":
-                        self.positions[index_x][index_y] = None
+                    self.amount += 1
+                    m = self.positions[index_x][index_y]
+                    if m not in self.minions:
+                        print(cell.x, cell.y)
+                        print(index_x, index_y)
+                        time.sleep(5)
                     
-                   
-
+                    if m.char == "0":
+                        self.minions.pop(self.minions.index(m))
+                        self.positions[index_x][index_y] = None
 
     def regen_grass(self):
         for i in self.grass_grid:
@@ -231,6 +250,8 @@ class Minion(object):
 
         self.ways = [[0,1],[1,0],[0,-1],[-1,0]]
 
+        self.log_data = dict(log_datas)
+        self.log_data["char"] = self.char
       
 
     def eat(self, eat):
@@ -271,7 +292,7 @@ class Minion(object):
         
         x, y = self.find_valid_direction()
 
-        print(self.x, self.y)
+        print("making-baby",self.x, self.y)
         print(x, y)
 
         if x == self.x and y == self.y:
@@ -343,7 +364,16 @@ class Minion(object):
                             if minion.energy < (self.energy+20) and minion.age > 0.3 and self is not minion and self.age > 0.3:
                                 self.victims += 1
                                 self.energy += minion.energy
-                                self.arena.destroy_minion(minion)
+
+                                d = self.log_data
+                                d["x"] = self.x
+                                d["y"] = self.y
+                                d["char"] = self.char
+                                d["target_x"] = minion.x
+                                d["target_y"] = minion.y
+                                d["target_char"] = minion.char
+
+                                self.arena.destroy_minion(minion, datas=d)
                                 minion.char = "0"
                                 break
                 
@@ -362,23 +392,23 @@ class Minion(object):
         """
         Move method is used every ticks of the program to make the minion do something
         """
-
-
-        next_offset = self.find_food()
-        new_x, new_y = self.find_valid_direction(next_offset, True)
-
-        self.arena.swap_position([self.x, self.y], [new_x, new_y])
-                
-        self.x = new_x
-        self.y = new_y
-        
-        self.energy -= 1
-        self.age += 0.01
-
         #Kills the minion if his energy dropped to 0 during this tick
         if self.energy < 0:
             self.char = "0"
-            self.arena.destroy_minion(self)
+            self.arena.destroy_minion(self, self.log_data)
+            return
+        
+        next_offset = self.find_food()
+        new_x, new_y = self.find_valid_direction(next_offset, True)
+
+        self.energy -= 1
+        self.age += 0.01
+        self.arena.swap_position([self.x, self.y], [new_x, new_y])
+        self.x = new_x
+        self.y = new_y
+
+        self.log_data["x"] = self.x
+        self.log_data["y"] = self.y
 
     def play(self):
         self.move()
