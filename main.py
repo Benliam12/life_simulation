@@ -8,6 +8,8 @@ from numpy import exp
 from constants import *
 from food import Food
 
+
+
 def __sigmoid(self, x):
     return 1 / (1 + exp(-x))
 
@@ -20,6 +22,9 @@ class Arena:
         self.ticks = ticks
         self.positions = [[None] * self.dimension for x in range(self.dimension)]
         self.grass_grid = [[None] * self.dimension for x in range(self.dimension)]
+
+        self.baby_list = []
+        self.amount = 0
 
         #Init methods
         self._generate_terrain()
@@ -44,7 +49,7 @@ class Arena:
         
         #Printing arena data
         output.append("Simulation AGE : " + "{0:.2f}".format(round(self.age * 100)/100) + "\n")
-        output.append("Amount: " + str(len(self.minions)) +  "\n")
+        output.append("Amount: " + str(len(self.minions)) + " - " + str(self.amount) + "\n")
         output.append("\n")
 
         #Printing info from top minions
@@ -53,7 +58,7 @@ class Arena:
             #Number to display
             if(index == 6):
                 break
-            
+
             sub_list = []
             sub_list.append(i.char + " has moved to (" + "{:02d}".format(i.x) + "," +"{:02d}".format(i.y)+")")
             sub_list.append("(" + "{:3d}".format(int(i.energy)) + "/{:3d}".format(int(i.max_energy)) +" Energy left)")
@@ -63,11 +68,11 @@ class Arena:
             sub_list.append("(Babies " + "{: 2d}".format(i.baby_count) + ")")
             sub_list.append("(Vision " + "{: 2d}".format(i.vision) + ")")
             sub_list.append("(Baby cost " + "{:3d}".format(i.baby_cost) + ")")
+            sub_list.append("(Victims " + "{:2d}".format(i.victims) + ")")
 
             sub_list.append("\n")
             sub_list = ' '.join(sub_list)
             output.append(sub_list)
-
 
         printer = []
 
@@ -110,9 +115,8 @@ class Arena:
                     good = False
 
     def spawn_baby(self, baby):
-        self.minions.append(baby)
+        self.baby_list.append(baby)
         self.positions[baby.x][baby.y] = baby
-
 
     def swap_position(self, pos1, pos2):
         """
@@ -125,18 +129,23 @@ class Arena:
             tmp.eat(self.grass_grid[pos2[0]][pos2[1]].eat())
         self.positions[pos2[0]][pos2[1]] = tmp
     
-    def destroy_minion(self, minion1, minion2=None):
+    def destroy_minion(self, minion1, minion2=None, datas=log_datas):
         """
         Kills a minion
         """
         if minion2 == None:
-            self.positions[minion1.x][minion1.y] = None
+            target = self.positions[minion1.x][minion1.y]
+            if target == None:
+                return
+
             for index, minion in enumerate(self.minions):
                 if minion is minion1:
+                    
+                    self.positions[minion1.x][minion1.y] = None
                     self.minions.pop(index)
+                    
                     print(minion1.x, minion1.y)
                     return
-            print("NO minion found!")
 
     def in_arena(self, value):
         return value >= 0 and value < self.dimension
@@ -145,12 +154,19 @@ class Arena:
         """
         Weird fixing bug method. Clear up dead bodies if they remain in the arena
         """
+        self.amount = 0
         for index_x, i in enumerate(self.positions):
             for index_y, cell in enumerate(i):
                 if isinstance(cell, Minion):
-                    if cell.char == "0":
+                    self.amount += 1
+                    m = self.positions[index_x][index_y]
+                    if m not in self.minions:
+                        print(cell.x, cell.y)
+                        print(index_x, index_y)
+                    
+                    if m.char == "0":
+                        self.minions.pop(self.minions.index(m))
                         self.positions[index_x][index_y] = None
-
 
     def regen_grass(self):
         for i in self.grass_grid:
@@ -166,6 +182,10 @@ class Arena:
             for minion in self.minions:
                 minion.play()
 
+            for minion in self.baby_list:
+                self.minions.append(minion)
+            
+            self.baby_list = []
             self.display(True)
 
             #If the simulation has killed ALL minion, restart it with 2 new minions
@@ -183,7 +203,7 @@ class Minion(object):
         #Maximum values of minion caracteritics can reach
         self.max_vision = 15
         self.max_energy_storing = 1000
-        self.max_energy_gain = 4
+        self.max_energy_gain = 10
 
         #Position of minion
         self.x = x
@@ -193,6 +213,7 @@ class Minion(object):
         self.age = 0
         self.generation = generation
         self.baby_count = 0
+        self.victims = 0
 
         self.energy = energy
         self.energy_gain = energy_gain
@@ -215,6 +236,8 @@ class Minion(object):
 
         self.ways = [[0,1],[1,0],[0,-1],[-1,0]]
 
+        self.log_data = dict(log_datas)
+        self.log_data["char"] = self.char
       
 
     def eat(self, eat):
@@ -225,6 +248,7 @@ class Minion(object):
                 self.energy += self.energy_gain
 
             if self.energy >= (2*self.baby_cost - self.age):
+                return
                 self.make_baby()
     
     def mutate(self):
@@ -252,12 +276,20 @@ class Minion(object):
     def make_baby(self):
         #Updating parent for more accurate informations
         self.energy -= self.baby_cost
-        self.baby_count += 1
+        
+        x, y = self.find_valid_direction()
 
+        print("making-baby",self.x, self.y)
+        print(x, y)
+
+        if x == self.x and y == self.y:
+            return
+
+        self.baby_count += 1
         #Creating the baby
         baby = Minion(self.arena, char=self.char, max_energy=self.max_energy, energy_gain=self.energy_gain, generation = self.generation + 1, vision = self.vision, baby_cost=self.baby_cost)
         
-        x, y = self.find_valid_direction()
+        baby.char = "5"
         baby.x = x
         baby.y = y
         baby.energy = self.baby_cost
@@ -275,13 +307,19 @@ class Minion(object):
         """
         ways = [[0,1],[1,0],[0,-1],[-1,0]]
         random.shuffle(ways)
+
+        interests = [0] * 4
         for j in range(1,self.vision+1):
             for i, way in enumerate(ways):
                 x = self.x + way[0]*j
                 y = self.y + way[1]*j
                 if self.arena.in_arena(x) and self.arena.in_arena(y):
                     if self.arena.grass_grid[x][y].is_eatable():
-                        return ways[i]
+                        interests[i] = 1
+                    elif isinstance(self.arena.positions[x][y], Minion):
+                        interests[i] = self.arena.positions[x][y].energy if self.arena.positions[x][y].age >= 0.3 else 0
+            if max(interests) != 0 and max(interests) < self.energy:
+                return ways[interests.index(max(interests))]
         return ways[random.randint(0,3)]
     
     def find_valid_direction(self, next_offset=None, can_beat_up = False):
@@ -310,8 +348,19 @@ class Minion(object):
                             minion = self.arena.positions[new_x][new_y]
 
                             #Eating condition
-                            if minion.age < self.age:
-                                self.arena.destroy_minion(minion)
+                            if minion.energy < (self.energy+20) and minion.age > 0.3 and self is not minion and self.age > 0.3:
+                                self.victims += 1
+                                self.energy += minion.energy
+
+                                d = self.log_data
+                                d["x"] = self.x
+                                d["y"] = self.y
+                                d["char"] = self.char
+                                d["target_x"] = minion.x
+                                d["target_y"] = minion.y
+                                d["target_char"] = minion.char
+
+                                self.arena.destroy_minion(minion, datas=d)
                                 minion.char = "0"
                                 break
                 
@@ -330,22 +379,23 @@ class Minion(object):
         """
         Move method is used every ticks of the program to make the minion do something
         """
-
-
-        next_offset = self.find_food()
-        new_x, new_y = self.find_valid_direction(next_offset, True)
-
-        self.arena.swap_position([self.x, self.y], [new_x, new_y])
-                
-        self.x = new_x
-        self.y = new_y
-        
-        self.energy -= 1
-        self.age += 0.01
-
         #Kills the minion if his energy dropped to 0 during this tick
         if self.energy < 0:
-            self.arena.destroy_minion(self)
+            self.char = "0"
+            self.arena.destroy_minion(self, self.log_data)
+            return
+        
+        next_offset = self.find_food()
+        new_x, new_y = self.find_valid_direction(next_offset, False)
+
+        self.energy -= 1
+        self.age += 0.01
+        self.arena.swap_position([self.x, self.y], [new_x, new_y])
+        self.x = new_x
+        self.y = new_y
+
+        self.log_data["x"] = self.x
+        self.log_data["y"] = self.y
 
     def play(self):
         self.move()
