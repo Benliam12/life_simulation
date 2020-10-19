@@ -24,6 +24,7 @@ class Arena:
         self.grass_grid = [[None] * self.dimension for x in range(self.dimension)]
 
         self.baby_list = []
+        self.dead_minion = []
         self.amount = 0
 
         #Init methods
@@ -45,7 +46,8 @@ class Arena:
                     output[i][j] = "11"
             output[i][j] += (COLOR_RESET + "\n")
         
-        n_minions_list = sorted(self.minions, key=lambda x: (-x.age,x.char, x.baby_count))
+        n_list = list(self.minions)
+        n_minions_list = sorted(n_list, key=lambda x: (-x.age,x.char, x.baby_count))
         
         #Printing arena data
         output.append("Simulation AGE : " + "{0:.2f}".format(round(self.age * 100)/100) + "\n")
@@ -107,9 +109,10 @@ class Arena:
 
                 if not isinstance(self.positions[x][y], Minion):
                     vision = random.randint(3,5)
-                    max_energy = random.randint(100, 300)
+                    max_energy = random.randint(100, 120)
                     baby_cost = int((max_energy/2) - (random.random() * random.randint(0,math.floor((max_energy/2)-1))))
                     a = Minion(arena, x,y, chars[i], vision=vision, baby_cost=baby_cost, max_energy=max_energy)
+                    a.energy = baby_cost - 10
                     self.positions[x][y] = a
                     self.minions.append(a)
                     good = False
@@ -136,16 +139,19 @@ class Arena:
         if minion2 == None:
             target = self.positions[minion1.x][minion1.y]
             if target == None:
+                print(minion1.x, minion1.y)
+                print("MISSED TARGET!")
+                time.sleep(30)
                 return
 
             for index, minion in enumerate(self.minions):
                 if minion is minion1:
-                    
                     self.positions[minion1.x][minion1.y] = None
-                    self.minions.pop(index)
-                    
-                    print(minion1.x, minion1.y)
+                    self.dead_minion.append(minion)
                     return
+        else:
+            print("HAHA")
+            time.sleep(0.5)
 
     def in_arena(self, value):
         return value >= 0 and value < self.dimension
@@ -176,14 +182,19 @@ class Arena:
     def run(self):
         delay = 1/self.ticks
         while True:
-            self.clear_weird_minion()
+            #self.clear_weird_minion()
             start = time.time()
 
             for minion in self.minions:
                 minion.play()
 
-            for minion in self.baby_list:
-                self.minions.append(minion)
+            tmp_list = []
+            for minion in self.minions:
+                if minion not in self.dead_minion:
+                    tmp_list.append(minion)
+            self.minions = tmp_list
+            #for minion in self.baby_list:
+            #    self.minions.append(minion)
             
             self.baby_list = []
             self.display(True)
@@ -247,9 +258,8 @@ class Minion(object):
             if self.energy <= self.max_energy:
                 self.energy += self.energy_gain
 
-            if self.energy >= (2*self.baby_cost - self.age):
-                return
-                self.make_baby()
+            #if self.energy >= (2*self.baby_cost - self.age):
+            #    self.make_baby()
     
     def mutate(self):
         """
@@ -279,10 +289,9 @@ class Minion(object):
         
         x, y = self.find_valid_direction()
 
-        print("making-baby",self.x, self.y)
-        print(x, y)
-
         if x == self.x and y == self.y:
+            print("CAN'T SPAWN BABY ON IT SELF!")
+            time.sleep(30)
             return
 
         self.baby_count += 1
@@ -294,7 +303,7 @@ class Minion(object):
         baby.y = y
         baby.energy = self.baby_cost
 
-        baby.mutate()
+        #baby.mutate()
         self.arena.spawn_baby(baby)
 
     def find_food(self):
@@ -380,9 +389,9 @@ class Minion(object):
         Move method is used every ticks of the program to make the minion do something
         """
         #Kills the minion if his energy dropped to 0 during this tick
-        if self.energy < 0:
+        if self.energy <= 0:
             self.char = "0"
-            self.arena.destroy_minion(self, self.log_data)
+            self.arena.destroy_minion(self, datas=self.log_data)
             return
         
         next_offset = self.find_food()
@@ -404,7 +413,7 @@ class Minion(object):
         #TODO: Display a custom color per minion
         pass
 arena = Arena(dimension = 40, ticks=20)
-arena.generate_minions(10)
+arena.generate_minions(5)
 
 arena.run()
 
