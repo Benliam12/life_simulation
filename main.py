@@ -47,7 +47,7 @@ class Arena:
             output[i][j] += (COLOR_RESET + "\n")
         
         n_list = list(self.minions)
-        n_minions_list = sorted(n_list, key=lambda x: (-x.age,x.char, x.baby_count))
+        n_minions_list = sorted(n_list, key=lambda x: (x.energy, -x.age,x.char, x.baby_count))
         
         #Printing arena data
         output.append("Simulation AGE : " + "{0:.2f}".format(round(self.age * 100)/100) + "\n")
@@ -118,7 +118,7 @@ class Arena:
                     good = False
 
     def spawn_baby(self, baby):
-        self.baby_list.append(baby)
+        self.minions.append(baby)
         self.positions[baby.x][baby.y] = baby
 
     def swap_position(self, pos1, pos2):
@@ -139,6 +139,14 @@ class Arena:
         if minion2 == None:
             target = self.positions[minion1.x][minion1.y]
             if target == None:
+
+                for i, x in enumerate(self.positions):
+                    for j, y in enumerate(x):
+                        if isinstance(y, Minion):
+                            print(y.char, y.x, y.y)
+
+
+                print(datas["death_event"], datas["x"], datas["y"], datas["char"])
                 print(minion1.x, minion1.y)
                 print("MISSED TARGET!")
                 time.sleep(30)
@@ -193,10 +201,7 @@ class Arena:
                 if minion not in self.dead_minion:
                     tmp_list.append(minion)
             self.minions = tmp_list
-            #for minion in self.baby_list:
-            #    self.minions.append(minion)
-            
-            self.baby_list = []
+     
             self.display(True)
 
             #If the simulation has killed ALL minion, restart it with 2 new minions
@@ -250,6 +255,8 @@ class Minion(object):
         self.log_data = dict(log_datas)
         self.log_data["char"] = self.char
       
+    def is_dead(self):
+        return self.energy <= 0
 
     def eat(self, eat):
         if eat:
@@ -258,8 +265,8 @@ class Minion(object):
             if self.energy <= self.max_energy:
                 self.energy += self.energy_gain
 
-            #if self.energy >= (2*self.baby_cost - self.age):
-            #    self.make_baby()
+            if self.energy >= (2*self.baby_cost - self.age):
+                self.make_baby()
     
     def mutate(self):
         """
@@ -298,7 +305,6 @@ class Minion(object):
         #Creating the baby
         baby = Minion(self.arena, char=self.char, max_energy=self.max_energy, energy_gain=self.energy_gain, generation = self.generation + 1, vision = self.vision, baby_cost=self.baby_cost)
         
-        baby.char = "5"
         baby.x = x
         baby.y = y
         baby.energy = self.baby_cost
@@ -391,6 +397,7 @@ class Minion(object):
         #Kills the minion if his energy dropped to 0 during this tick
         if self.energy <= 0:
             self.char = "0"
+            self.log_data["death_event"] = "Starvation"
             self.arena.destroy_minion(self, datas=self.log_data)
             return
         

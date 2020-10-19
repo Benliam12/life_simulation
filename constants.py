@@ -13,4 +13,5 @@ log_datas = {
     "target_x": 0,
     "target_y": 0,
     "target_char": "none",
+    "death_event": "none",
 }
