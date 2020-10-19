@@ -136,29 +136,16 @@ class Arena:
         if minion2 == None:
             target = self.positions[minion1.x][minion1.y]
             if target == None:
-                print("MISSING TARGET", minion1.x, minion1.y)
-                print("RECEIVED", datas["x"], datas["y"], "Energy:", datas["char"])
-                time.sleep(20)
                 return
 
             for index, minion in enumerate(self.minions):
                 if minion is minion1:
-                    print("DELETING",minion.char, minion1.x, minion1.y)
-                    print("RECEIVED",datas["char"], datas["x"], datas["y"])
-                    print("index:", index)
-                    time.sleep(20)
                     
                     self.positions[minion1.x][minion1.y] = None
                     self.minions.pop(index)
                     
                     print(minion1.x, minion1.y)
                     return
-            
-            print("COULDNT DELETE MINION! TARGET:", datas["target_x"], datas["target_y"])
-            print("RECEIVED", datas["x"], datas["y"])
-            time.sleep(20)
-
-
 
     def in_arena(self, value):
         return value >= 0 and value < self.dimension
@@ -176,7 +163,6 @@ class Arena:
                     if m not in self.minions:
                         print(cell.x, cell.y)
                         print(index_x, index_y)
-                        time.sleep(5)
                     
                     if m.char == "0":
                         self.minions.pop(self.minions.index(m))
@@ -262,6 +248,7 @@ class Minion(object):
                 self.energy += self.energy_gain
 
             if self.energy >= (2*self.baby_cost - self.age):
+                return
                 self.make_baby()
     
     def mutate(self):
@@ -399,7 +386,7 @@ class Minion(object):
             return
         
         next_offset = self.find_food()
-        new_x, new_y = self.find_valid_direction(next_offset, True)
+        new_x, new_y = self.find_valid_direction(next_offset, False)
 
         self.energy -= 1
         self.age += 0.01
@@ -417,7 +404,7 @@ class Minion(object):
         #TODO: Display a custom color per minion
         pass
 arena = Arena(dimension = 40, ticks=20)
-arena.generate_minions(1)
+arena.generate_minions(10)
 
 arena.run()
 
